@@ -31,12 +31,28 @@ function Invoke-AgFailover {
     Position = 1,
     ValueFromPipeline=$True,
     ValueFromPipelineByPropertyName=$True,
-      HelpMessage='Which instance do you want to check for secondary replicas?')]
-    [Alias('secondaryinstance')]
-    [string[]]$instance,
+      HelpMessage='Which instance do you want to fail the availability group from?')]
+    [Alias('primary')]
+    [string[]]$primaryinstance,
 
     [Parameter(Mandatory=$True,
     Position = 2,
+    ValueFromPipeline=$True,
+    ValueFromPipelineByPropertyName=$True,
+      HelpMessage='Which instance do you want to fail the availability group from?')]
+    [Alias('secondary')]
+    [string[]]$secondaryinstance,
+
+    [Parameter(Mandatory=$True,
+    Position = 3,
+    ValueFromPipeline=$True,
+    ValueFromPipelineByPropertyName=$True,
+      HelpMessage='What availability group do you want to failover?')]
+    [Alias('availabilitygroup')]
+    [string[]]$agname,
+
+    [Parameter(Mandatory=$True,
+    Position = 4,
     ValueFromPipeline=$True,
     ValueFromPipelineByPropertyName=$True,
         HelpMessage='Set to 1 if you want to execute the database restore.  Otherwise enter 0.')]
@@ -61,54 +77,36 @@ function Invoke-AgFailover {
     }
 
     <# Create query to check for failover-eligible AGs #>
-    $query = "SELECT g.[name], ar.replica_server_name
+    $query = "SELECT 1 
     FROM sys.dm_hadr_availability_replica_states r
     INNER JOIN sys.availability_replicas ar
     ON ar.group_id = r.group_id
     AND ar.replica_id = r.replica_id
     INNER JOIN sys.availability_groups g
     ON g.group_id = ar.group_id
-    WHERE r.role_desc = N'SECONDARY'
+    WHERE r.role_desc = N'PRIMARY'
     AND r.recovery_health_desc = N'ONLINE'
     AND r.synchronization_health_desc = N'HEALTHY'
-    AND ar.availability_mode_desc = N'SYNCHRONOUS_COMMIT';"
+    AND ar.availability_mode_desc = N'SYNCHRONOUS_COMMIT'
+    AND g.name = '$agname';"
+
+    $query;
 
     <# Execute failover-eligible query #>
-    $secondaries = Invoke-Sqlcmd -ServerInstance "$instance" -Database master -Query $query;
+    $aghealth = Invoke-Sqlcmd -ServerInstance "$primaryinstance" -Database master -Query $query;
+
+    $secondaryinstance;
 
     <# Output message if there are no failover-eligible AGs #>
-    if($secondaries.Count -eq 0)
+    if($aghealth.Column1 -ne 1)
     {
         Write-Output "There are no Availability Group replicas available to fail over to $instance."
     }
-
-    <# If eligible AGs exist, loop through them #>
-    foreach($secondary in $secondaries)
+    else
     {
-        $secreplica = $secondary.replica_server_name;
-        $ag = $secondary.name;
-
-        $query = "ALTER AVAILABILITY GROUP $ag FAILOVER;"
-
-        <# If $noexec is set to 0, execute the AG failover 
-           and output a message when complete #>
-        if($noexec -eq 0)
-        {
-            $starttime = Get-Date;
-            Invoke-Sqlcmd -ServerInstance "$instance" -Database master -Query $query;
-            $endtime = Get-Date;
-            $duration = (New-TimeSpan -Start $starttime -End $endtime).Seconds;
-            Write-Output "Failed Availability Group $ag to replica $instance in $duration seconds";
-        }
-        <# If $noexec is not set to 0, write a file out to the path built above for each AG #>
-        else
-        {
-            $comment = "/* Run against instance $instance */" ;
-            $comment | Out-File -FilePath "$outpath\failover_$ag`_$rundate.sql" -Append;
-            $use = "USE master;";
-            $use | Out-File -FilePath "$outpath\failover_$ag`_$rundate.sql" -Append;
-            $query | Out-File -FilePath "$outpath\failover_$ag`_$rundate.sql" -Append;
-        }
+        $failoverquery = "ALTER AVAILABILITY GROUP [$agname] FAILOVER;"
+        Invoke-Sqlcmd -ServerInstance "$secondaryinstance" -Database master -Query $failoverquery;
+        Write-Output $failoverquery;
     }
 }
 }
