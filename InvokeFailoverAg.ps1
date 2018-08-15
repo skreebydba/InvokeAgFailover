@@ -51,13 +51,13 @@ function Invoke-AgFailover {
     [Alias('availabilitygroup')]
     [string[]]$agname,
 
-    [Parameter(Mandatory=$True,
+    [Parameter(Mandatory=$False,
     Position = 4,
     ValueFromPipeline=$True,
     ValueFromPipelineByPropertyName=$True,
         HelpMessage='Set to 1 if you want to execute the database restore.  Otherwise enter 0.')]
     [Alias('dontrun')]
-    [string]$noexec 
+    [string]$noexec=0
   )
   process
   {
@@ -77,7 +77,7 @@ function Invoke-AgFailover {
     }
 
     <# Create query to check for failover-eligible AGs #>
-    $query = "SELECT 1 
+    $primaryquery = "SELECT 1 
     FROM sys.dm_hadr_availability_replica_states r
     INNER JOIN sys.availability_replicas ar
     ON ar.group_id = r.group_id
@@ -90,15 +90,25 @@ function Invoke-AgFailover {
     AND ar.availability_mode_desc = N'SYNCHRONOUS_COMMIT'
     AND g.name = '$agname';"
 
-    $query;
+    $secondaryquery = "SELECT 1
+    FROM sys.dm_hadr_availability_replica_states r
+    INNER JOIN sys.availability_replicas ar
+    ON ar.group_id = r.group_id
+    AND ar.replica_id = r.replica_id
+    INNER JOIN sys.availability_groups g
+    ON g.group_id = ar.group_id
+    WHERE r.role_desc = N'SECONDARY'
+    AND r.recovery_health_desc = N'ONLINE'
+    AND r.synchronization_health_desc = N'HEALTHY'
+    AND ar.availability_mode_desc = N'SYNCHRONOUS_COMMIT'
+    AND g.name = '$agname';"
 
     <# Execute failover-eligible query #>
-    $aghealth = Invoke-Sqlcmd -ServerInstance "$primaryinstance" -Database master -Query $query;
-
-    $secondaryinstance;
+    $primaryhealth = Invoke-Sqlcmd -ServerInstance "$primaryinstance" -Database master -Query $primaryquery;
+    $secondaryhealth = Invoke-Sqlcmd -ServerInstance "$secondaryinstance" -Database master -Query $secondaryquery;
 
     <# Output message if there are no failover-eligible AGs #>
-    if($aghealth.Column1 -ne 1)
+    if(($primaryhealth.Column1 -ne 1) -or ($secondaryhealth.Column1 -ne 1))
     {
         Write-Output "There are no Availability Group replicas available to fail over to $instance."
     }
@@ -106,7 +116,6 @@ function Invoke-AgFailover {
     {
         $failoverquery = "ALTER AVAILABILITY GROUP [$agname] FAILOVER;"
         Invoke-Sqlcmd -ServerInstance "$secondaryinstance" -Database master -Query $failoverquery;
-        Write-Output $failoverquery;
     }
 }
 }
