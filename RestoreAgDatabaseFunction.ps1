@@ -39,13 +39,6 @@
   Restore Availability Group database, using automatic seeding to initialize secondary replicas (for SQL versions greater than or equal to 2016):
   Restore-AgDatabase -AvailabilityGroup MyAgName -database MyDatabase -primary MyPrimary - secondaries @("Secondary1","Secondary2") -backup "C:\Backup\MyBackup.bak";
 
-See Help about_Comment_Based_Help for more .Keywords
-
-# Comment-based Help tags were introduced in PS 2.0
-#requires -version 2
-#>
-
-
 #----------------[ Declarations ]------------------------------------------------------
 
 # Set Error Action
@@ -57,7 +50,7 @@ See Help about_Comment_Based_Help for more .Keywords
 # Set any initial values
 # $Examplefile = "C:\scripts\example.txt"
 
-#----------------[ Functions ]---------------------------------------------------------
+#----------------[ Functions ]---------------------------------------------------------#>
 Function Restore-AgDatabase{
   [CmdletBinding()]
 
@@ -76,11 +69,44 @@ Function Restore-AgDatabase{
   
   Process{
     Try{
+        
+        $replicas = @();
+        $replicas += $primary;
+        $replicas += $secondaries;
+        
+        $version = Invoke-DbaQuery -SqlInstance $primary -Database master -Query "SELECT SERVERPROPERTY('productversion')";
+        $majorversion = $version.Column1.Substring(0,2);
 
-        $services = Get-DbaService -Computer $primary;
-        $serviceacct = $services | Select-Object ServiceName, StartName | Where-Object ServiceName -eq MSSQLSERVER;
-        $sqlacct = $serviceacct.StartName;
+        if($majorversion -lt 13)
+        {
+            if ($path = "")
+            {
+                throw "For SQL version less than 2016, -Fileshare cannot be blank";
+            }
+            else
+            {
+                #$exists = Test-DbaPath -SqlInstance $primary -Path $path;
+        
+                foreach($replica in $replicas)
+                {
 
+                    $services = Get-DbaService -Computer $replica;
+                    $serviceacct = $services | Select-Object ServiceName, StartName | Where-Object ServiceName -eq MSSQLSERVER;
+                    $sqlacct = $serviceacct.StartName;
+                    $shareexists = $true;
+
+                    if($shareexists -eq $true)
+                    {
+                        $shareexists = Test-DbaPath -SqlInstance $replica -Path $fileshare;
+                    }
+                    else
+                    {
+                        throw "-Fileshare does not exist or is not accessible by SQL Server service account $sqlacct on $replica";
+                    }
+                }
+            }
+        }
+                
         $exists = Get-DbaDatabase -SqlInstance $primary -Database $database;
 
         if($exists)
@@ -92,9 +118,6 @@ Function Restore-AgDatabase{
         }
         <# Restore the database to the promary replica #>
         Restore-DbaDatabase -SqlInstance $primary -Path $backup -DatabaseName $database -WithReplace;
-
-        $version = Invoke-DbaQuery -SqlInstance $primary -Database master -Query "SELECT SERVERPROPERTY('productversion')";
-        $majorversion = $version.Column1.Substring(0,2);
 
         <# Check SQL Server version. If 2016 or greater, use automatic seeding to initialize the secondaries.  If less than 2016, use backup/restore #>
         if($majorversion -ge 13)
@@ -108,20 +131,6 @@ Function Restore-AgDatabase{
             Restore FULL and LOG backups on all secondary replicas
             Join the database to the AG on all replicas 
             It assumes that the SQL Server services accounts for all replicas have read/write access to the -SharedPath #>
-
-            if ($fileshare = "")
-            {
-                throw "For SQL version less than 2016, -Fileshare cannot be blank";
-            }
-            else
-            {
-                $exists = Test-DbaPath -SqlInstance $primary -Path $fileshare;
-
-                if($exists -eq $false)
-                {
-                    throw "-Fileshare does not exist or is not accessible by SQL Server service account $sqlacct on $primary";
-                }
-            }
 
             Add-DbaAgDatabase -SqlInstance $primary -AvailabilityGroup $AvailabilityGroup -Database $database -SeedingMode Manual -SharedPath $fileshare;
         }
