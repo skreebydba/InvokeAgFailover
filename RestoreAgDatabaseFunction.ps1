@@ -32,13 +32,12 @@
   Author: Frank Gill, Concurrency, Inc.
 
 .EXAMPLE
-  Run the Get-Example script to create the c:\example folder:
-  Get-Example -Directory c:\example
+  Restore Availability Group database, using backup/restore to initialize secondary replicas (for SQL versions less than 2016):
+  Restore-AgDatabase -AvailabilityGroup MyAgName -database MyDatabase -primary MyPrimary - secondaries @("Secondary1","Secondary2") -backup "C:\Backup\MyBackup.bak" -fileshare "\\MyPrimary\Backup";
 
 .EXAMPLE 
-  Run the Get-Example script to create the folder c:\example and
-  overwrite any existing folder in that location:
-  Get-Example -Directory c:\example -force
+  Restore Availability Group database, using automatic seeding to initialize secondary replicas (for SQL versions greater than or equal to 2016):
+  Restore-AgDatabase -AvailabilityGroup MyAgName -database MyDatabase -primary MyPrimary - secondaries @("Secondary1","Secondary2") -backup "C:\Backup\MyBackup.bak";
 
 See Help about_Comment_Based_Help for more .Keywords
 
@@ -46,12 +45,7 @@ See Help about_Comment_Based_Help for more .Keywords
 #requires -version 2
 #>
 
-[CmdletBinding()]
 
-PARAM ( 
-    [string]$InitialDirectory = $(throw "-InitialDirectory is required."),
-    [switch]$Add = $false
-)
 #----------------[ Declarations ]------------------------------------------------------
 
 # Set Error Action
@@ -64,16 +58,53 @@ PARAM (
 # $Examplefile = "C:\scripts\example.txt"
 
 #----------------[ Functions ]---------------------------------------------------------
-Function MyExampleFunction{
-  Param()
+Function Restore-AgDatabase{
+  [CmdletBinding()]
+
+    PARAM ( 
+        [string]$AvailabilityGroup = $(throw "-AvailabilityGroup is required."),
+        [string]$Database = $(throw "-Database is required."),
+        [string]$Primary = $(throw "-Primary is required."),
+        [string[]]$Secondaries = $(throw "-Secondaries is required."),
+        [string]$Backup = $(throw "-Backup is required."),
+        [string]$Fileshare
+    )
   
   Begin{
-    Write-Host "Start example function..."
+    Write-Host "Start Restore-AgDatabase function..."
   }
   
   Process{
     Try{
-      "Do Something here"
+        $exists = Get-DbaDatabase -SqlInstance $primary -Database $database;
+
+        if($exists)
+        {
+            <# Remove the database to be restored from the Availability Group#>
+            Remove-DbaAgDatabase -SqlInstance $primary -Database $database -AvailabilityGroup $AvailabilityGroup -Confirm:$false;
+            <# Drop the database from all secondary replicas #>
+            Remove-DbaDatabase -SqlInstance $secondaries -Database $database -Confirm:$false;
+        }
+        <# Restore the database to the promary replica #>
+        Restore-DbaDatabase -SqlInstance $primary -Path $backup -DatabaseName $database -WithReplace;
+
+        $version = Invoke-DbaQuery -SqlInstance $primary -Database master -Query "SELECT SERVERPROPERTY('productversion')";
+        $majorversion = $version.Column1.Substring(0,2);
+
+        <# Check SQL Server version. If 2016 or greater, use automatic seeding to initialize the secondaries.  If less than 2016, use backup/restore #>
+        if($majorversion -ge 13)
+        {
+            Add-DbaAgDatabase -SqlInstance $primary -AvailabilityGroup $AvailabilityGroup -Database $database -SeedingMode Automatic;
+        }
+        else
+        {
+        <# Add the database back to the AG - this will execute the following steps
+            Run FULL and LOG backups on the primary replica
+            Restore FULL and LOG backups on all secondary replicas
+            Join the database to the AG on all replicas 
+            It assumes that the SQL Server services accounts for all replicas have read/write access to the -SharedPath #>
+            Add-DbaAgDatabase -SqlInstance $primary -AvailabilityGroup $AvailabilityGroup -Database $database -SeedingMode Manual -SharedPath $fileshare;
+        }
     }
     
     Catch{
@@ -85,7 +116,7 @@ Function MyExampleFunction{
   
   End{
     If($?){ # only execute if the function was successful.
-      Write-Host "Completed example function."
+      Write-Host "Completed Restore-AgDatabase function."
     }
   }
 }
@@ -93,3 +124,4 @@ Function MyExampleFunction{
 #----------------[ Main Execution ]----------------------------------------------------
 
 # Script Execution goes here
+  Restore-AgDatabase -AvailabilityGroup fbgsql2019ag -database WideWorldImporters -primary fbgsql2019vm1 -Secondaries "fbgsql2019vm2","fbgsql2019vm3" -backup "C:\backup\wwi_full_20190625.bak";

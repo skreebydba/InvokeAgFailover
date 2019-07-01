@@ -38,6 +38,6 @@ else
     Run FULL and LOG backups on the primary replica
     Restore FULL and LOG backups on all secondary replicas
     Join the database to the AG on all replicas 
-    It assumes that the SQL Server services accounts for all replicas have read/write access to the _sharedPath #>
+    It assumes that the SQL Server services accounts for all replicas have read/write access to the -SharedPath #>
     Add-DbaAgDatabase -SqlInstance $primary -AvailabilityGroup fbgsql2019ag -Database $database -SeedingMode Manual -SharedPath $fileshare;
 }
