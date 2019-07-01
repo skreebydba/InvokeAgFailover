@@ -76,6 +76,11 @@ Function Restore-AgDatabase{
   
   Process{
     Try{
+
+        $services = Get-DbaService -Computer $primary;
+        $serviceacct = $services | Select-Object ServiceName, StartName | Where-Object ServiceName -eq MSSQLSERVER;
+        $sqlacct = $serviceacct.StartName;
+
         $exists = Get-DbaDatabase -SqlInstance $primary -Database $database;
 
         if($exists)
@@ -103,6 +108,21 @@ Function Restore-AgDatabase{
             Restore FULL and LOG backups on all secondary replicas
             Join the database to the AG on all replicas 
             It assumes that the SQL Server services accounts for all replicas have read/write access to the -SharedPath #>
+
+            if ($fileshare = "")
+            {
+                throw "For SQL version less than 2016, -Fileshare cannot be blank";
+            }
+            else
+            {
+                $exists = Test-DbaPath -SqlInstance $primary -Path $fileshare;
+
+                if($exists -eq $false)
+                {
+                    throw "-Fileshare does not exist or is not accessible by SQL Server service account $sqlacct on $primary";
+                }
+            }
+
             Add-DbaAgDatabase -SqlInstance $primary -AvailabilityGroup $AvailabilityGroup -Database $database -SeedingMode Manual -SharedPath $fileshare;
         }
     }
