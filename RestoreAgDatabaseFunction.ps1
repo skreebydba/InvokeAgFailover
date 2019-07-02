@@ -55,12 +55,24 @@ Function Restore-AgDatabase{
   [CmdletBinding()]
 
     PARAM ( 
-        [string]$AvailabilityGroup = $(throw "-AvailabilityGroup is required."),
-        [string]$Database = $(throw "-Database is required."),
-        [string]$Primary = $(throw "-Primary is required."),
-        [string[]]$Secondaries = $(throw "-Secondaries is required."),
-        [string]$Backup = $(throw "-Backup is required."),
-        [string]$Fileshare
+        [Parameter(Mandatory=$true)]
+        [string]
+        $AvailabilityGroup,
+        [Parameter(Mandatory=$true)]
+        [string]
+        $Database,
+        [Parameter(Mandatory=$true)]
+        [string]
+        $Primary,
+        [Parameter(Mandatory=$true)]
+        [string[]]
+        $Secondaries,
+        [Parameter(Mandatory=$true)]
+        [string]
+        $Backup,
+        [Parameter]
+        [string]
+        $Fileshare
     )
   
   Begin{
