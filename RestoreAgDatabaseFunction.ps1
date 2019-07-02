@@ -123,7 +123,7 @@ Function Restore-AgDatabase{
 
         if($exists)
         {
-            <# Remove the database to be restored from the Availability Group#>
+            <# Remove the database to be restored from the Availability Group #>
             Remove-DbaAgDatabase -SqlInstance $primary -Database $database -AvailabilityGroup $AvailabilityGroup -Confirm:$false;
             <# Drop the database from all secondary replicas #>
             Remove-DbaDatabase -SqlInstance $secondaries -Database $database -Confirm:$false;
@@ -164,5 +164,4 @@ Function Restore-AgDatabase{
 
 #----------------[ Main Execution ]----------------------------------------------------
 
-# Script Execution goes here
-  Restore-AgDatabase -AvailabilityGroup fbgsql2019ag -database WideWorldImporters -primary fbgsql2019vm1 -Secondaries "fbgsql2019vm2","fbgsql2019vm3" -backup "C:\backup\wwi_full_20190625.bak";
+Restore-AgDatabase -AvailabilityGroup fbgsql2019ag -database WideWorldImporters -primary fbgsql2019vm1 -Secondaries "fbgsql2019vm2","fbgsql2019vm3" -backup "C:\backup\wwi_full_20190625.bak";
