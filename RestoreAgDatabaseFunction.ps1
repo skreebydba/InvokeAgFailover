@@ -70,7 +70,7 @@ Function Restore-AgDatabase{
         [Parameter(Mandatory=$true)]
         [string]
         $Backup,
-        [Parameter]
+        [Parameter(Mandatory=$false)]
         [string]
         $Fileshare
     )
@@ -85,9 +85,16 @@ Function Restore-AgDatabase{
         $replicas = @();
         $replicas += $primary;
         $replicas += $secondaries;
-        
         $version = Invoke-DbaQuery -SqlInstance $primary -Database master -Query "SELECT SERVERPROPERTY('productversion')";
         $majorversion = $version.Column1.Substring(0,2);
+
+        $primaryinfo = Get-DbaAgReplica -SqlInstance $primary -AvailabilityGroup $AvailabilityGroup -Replica $primary;
+        $role = $primaryinfo.Role;
+
+        if($role -ne "Primary")
+        {
+            throw "$primary was entered as the primary replica and it is $role";            
+        }
 
         if($majorversion -lt 13)
         {
@@ -143,13 +150,13 @@ Function Restore-AgDatabase{
             Restore FULL and LOG backups on all secondary replicas
             Join the database to the AG on all replicas 
             It assumes that the SQL Server services accounts for all replicas have read/write access to the -SharedPath #>
-
-            Add-DbaAgDatabase -SqlInstance $primary -AvailabilityGroup $AvailabilityGroup -Database $database -SeedingMode Manual -SharedPath $fileshare;
+            "Adding Ag Database";
+            Add-DbaAgDatabase -SqlInstance $primary -AvailabilityGroup $AvailabilityGroup -Database $database -SharedPath $fileshare;
         }
     }
     
     Catch{
-      "Something went wrong."
+      "Something went wrong.: $($PSItem.ToString())"
       Break
     }
 
@@ -163,5 +170,4 @@ Function Restore-AgDatabase{
 }
 
 #----------------[ Main Execution ]----------------------------------------------------
-
 Restore-AgDatabase -AvailabilityGroup fbgsql2019ag -database WideWorldImporters -primary fbgsql2019vm1 -Secondaries "fbgsql2019vm2","fbgsql2019vm3" -backup "C:\backup\wwi_full_20190625.bak";
