@@ -33,11 +33,11 @@
 
 .EXAMPLE
   Restore Availability Group database, using backup/restore to initialize secondary replicas (for SQL versions less than 2016):
-  Restore-AgDatabase -AvailabilityGroup MyAgName -database MyDatabase -primary MyPrimary - secondaries @("Secondary1","Secondary2") -backup "C:\Backup\MyBackup.bak" -fileshare "\\MyPrimary\Backup";
+  Restore-AgDatabase -AvailabilityGroup MyAgName -database MyDatabase -primary MyPrimary -secondaries "Secondary1","Secondary2" -backup "C:\Backup\MyBackup.bak" -fileshare "\\MyPrimary\Backup";
 
 .EXAMPLE 
   Restore Availability Group database, using automatic seeding to initialize secondary replicas (for SQL versions greater than or equal to 2016):
-  Restore-AgDatabase -AvailabilityGroup MyAgName -database MyDatabase -primary MyPrimary - secondaries @("Secondary1","Secondary2") -backup "C:\Backup\MyBackup.bak";
+  Restore-AgDatabase -AvailabilityGroup MyAgName -database MyDatabase -primary MyPrimary -secondaries "Secondary1","Secondary2";
 
 #----------------[ Declarations ]------------------------------------------------------
 
@@ -169,5 +169,3 @@ Function Restore-AgDatabase{
   }
 }
 
-#----------------[ Main Execution ]----------------------------------------------------
-Restore-AgDatabase -AvailabilityGroup fbgsql2019ag -database WideWorldImporters -primary fbgsql2019vm1 -Secondaries "fbgsql2019vm2","fbgsql2019vm3" -backup "C:\backup\wwi_full_20190625.bak";
