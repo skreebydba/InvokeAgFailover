@@ -82,6 +82,13 @@ Function Restore-AgDatabase{
   Process{
     Try{
         
+        $backupexists = Test-Path -Path $backup;
+
+        if($backupexists -ne $true)
+        {
+            throw "The backup file provided does not exist.  Please check the file and file path and try again.";
+        }
+
         $replicas = @();
         $replicas += $primary;
         $replicas += $secondaries;
@@ -149,7 +156,7 @@ Function Restore-AgDatabase{
     }
     
     Catch{
-      "Something went wrong."
+      "Something went wrong. $_"
       Break
     }
 
@@ -164,4 +171,4 @@ Function Restore-AgDatabase{
 
 #----------------[ Main Execution ]----------------------------------------------------
 
-Restore-AgDatabase -AvailabilityGroup fbgsql2019ag -database WideWorldImporters -primary fbgsql2019vm1 -Secondaries "fbgsql2019vm2","fbgsql2019vm3" -backup "C:\backup\wwi_full_20190625.bak";
+Restore-AgDatabase -AvailabilityGroup fbgsql2019ag -database AcceleratedAg -primary fbgsql2019vm1 -Secondaries "fbgsql2019vm2","fbgsql2019vm3" -backup "C:\Backup\AcceleratedAg_FULL_COPY_ONLY_20190903_old.bak";
