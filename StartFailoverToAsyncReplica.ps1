@@ -47,22 +47,29 @@ Function Start-FailoverToAsyncReplica{
   
   Process{
     Try{
-
+        
+        <# Get a list of replicas for the Availability Group to use to resume movement after failover #>
         [System.Collections.ArrayList]$replicas = (Get-DbaAvailabilityGroup -SqlInstance $primary).AvailabilityReplicas.Name;
+        <# Remove the new primary from the replica list #>
         $replicas.Remove($asyncsecondary);
 
-        Set-DbaAgReplica -SqlInstance $primary -AvailabilityGroup $agname -Replica $asyncsecondary -AvailabilityMode SynchronousCommit;
-
+        <# Get the synchronization state of the async secondary for use in the while loop below #>
         $syncstate = Get-DbaAgReplica -SqlInstance $asyncsecondary -AvailabilityGroup $agname | Where-Object -Property Name -EQ $asyncsecondary | Select-Object -ExpandProperty RollupSynchronizationState;
 
+        <# Set the synchronization state for the async secondary to Synchronous #>
+        Set-DbaAgReplica -SqlInstance $primary -AvailabilityGroup $agname -Replica $asyncsecondary -AvailabilityMode SynchronousCommit;
+
+        <# Check the $syncstate variable until it flips to Synchronizing, indicating the failover can occur without data loss #>
         while($syncstate -eq "Synchronizing")
         {
             $syncstate = Get-DbaAgReplica -SqlInstance $asyncsecondary -AvailabilityGroup $agname | Where-Object -Property Name -EQ $asyncsecondary | Select-Object -ExpandProperty RollupSynchronizationState;
             Write-Host $syncstate -ForegroundColor Yellow;
         }
 
+        <# Fail the Availability Group over to the formerly asynchronous secondary #>
         Invoke-DbaAgFailover -SqlInstance $asyncsecondary -AvailabilityGroup $agname -Force;
 
+        <# Resume data movement for the new secondary replicas, in case it is suspended #>
         Get-DbaAgDatabase -SqlInstance $replicas | Resume-DbaAgDbDataMovement -Confirm:$false        
     }
     
@@ -79,5 +86,3 @@ Function Start-FailoverToAsyncReplica{
     }
   }
 }
-
-#Start-FailoverToAsyncReplica -parameter1 "Snap" -parameter2 "Crackle" -parameter3 "Pop";
