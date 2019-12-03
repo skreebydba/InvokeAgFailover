@@ -38,7 +38,10 @@ Function Start-FailoverToAsyncReplica{
         $asyncsecondary,
         [Parameter(Mandatory=$true)]
         [string]
-        $agname
+        $agname,
+        [Parameter(Mandatory=$true)]
+        [string]
+        $resume
     )
   
   Begin{
@@ -69,8 +72,13 @@ Function Start-FailoverToAsyncReplica{
         <# Fail the Availability Group over to the formerly asynchronous secondary #>
         Invoke-DbaAgFailover -SqlInstance $asyncsecondary -AvailabilityGroup $agname -Force;
 
-        <# Resume data movement for the new secondary replicas, in case it is suspended #>
-        Get-DbaAgDatabase -SqlInstance $replicas | Resume-DbaAgDbDataMovement -Confirm:$false        
+        <# Resume data movement for the new secondary replicas, in case it is suspended
+           Skip this step by setting $resume = Y #>
+        if($resume -eq "Y")
+        {
+            Get-DbaAgDatabase -SqlInstance $replicas | Resume-DbaAgDbDataMovement -Confirm:$false;        
+        }
+        
     }
     
     Catch{
