@@ -51,13 +51,13 @@ Function Start-FailoverToAsyncReplica{
         [System.Collections.ArrayList]$replicas = (Get-DbaAvailabilityGroup -SqlInstance $primary).AvailabilityReplicas.Name;
         $replicas.Remove($asyncsecondary);
 
-        Set-DbaAgReplica -SqlInstance $primary -AvailabilityGroup fbg2017ag -Replica $asyncsecondary -AvailabilityMode SynchronousCommit;
+        Set-DbaAgReplica -SqlInstance $primary -AvailabilityGroup $agname -Replica $asyncsecondary -AvailabilityMode SynchronousCommit;
 
-        $syncstate = "Synchronizing";
+        $syncstate = Get-DbaAgReplica -SqlInstance $asyncsecondary -AvailabilityGroup $agname | Where-Object -Property Name -EQ $asyncsecondary | Select-Object -ExpandProperty RollupSynchronizationState;
+
         while($syncstate -eq "Synchronizing")
         {
             $syncstate = Get-DbaAgReplica -SqlInstance $asyncsecondary -AvailabilityGroup $agname | Where-Object -Property Name -EQ $asyncsecondary | Select-Object -ExpandProperty RollupSynchronizationState;
-            Get-DbaAgReplica -SqlInstance $asyncsecondary;
             Write-Host $syncstate -ForegroundColor Yellow;
         }
 
@@ -80,4 +80,4 @@ Function Start-FailoverToAsyncReplica{
   }
 }
 
-Start-FailoverToAsyncReplica -parameter1 "Snap" -parameter2 "Crackle" -parameter3 "Pop";
+#Start-FailoverToAsyncReplica -parameter1 "Snap" -parameter2 "Crackle" -parameter3 "Pop";
