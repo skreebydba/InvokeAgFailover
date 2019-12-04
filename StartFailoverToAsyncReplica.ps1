@@ -14,7 +14,10 @@
 
 .PARAMETER agname
   The Availability Group being failed over.
-      
+
+.PARAMETER resume
+    #TODO
+
 .NOTES
     Updated: 2019-12-03       Initial build.
     Release Date: TBD
@@ -39,8 +42,8 @@ Function Start-FailoverToAsyncReplica{
         [Parameter(Mandatory=$true)]
         [string]
         $agname,
-        [Parameter(Mandatory=$true)]
-        [string]
+        [Parameter(Mandatory=$false)]
+        [switch]
         $resume
     )
   
@@ -59,7 +62,21 @@ Function Start-FailoverToAsyncReplica{
         }
         
         <# Get a list of replicas for the Availability Group to use to resume movement after failover #>
-        [System.Collections.ArrayList]$replicas = (Get-DbaAvailabilityGroup -SqlInstance $primary).AvailabilityReplicas.Name;
+        [System.Collections.ArrayList]$replicas = (Get-DbaAvailabilityGroup -SqlInstance $primary -AvailabilityGroup $agname).AvailabilityReplicas.Name;
+
+        $primaryexists = $replicas.Contains($primary);
+        $secondaryexists = $replicas.Contains($asyncsecondary);
+
+        if(!$primaryexists)
+        {
+            Throw "Primary replica $primary does not exist in Availability Group $agname. Please check the value and rerun the function."
+        }
+        
+        if(!$secondaryexists)
+        {
+            Throw "Secondary replica $asyncsecondary does not exist in Availability Group $agname. Please check the value and rerun the function."
+        }
+
         <# Remove the new primary from the replica list #>
         $replicas.Remove($asyncsecondary);
 
@@ -70,9 +87,11 @@ Function Start-FailoverToAsyncReplica{
         Set-DbaAgReplica -SqlInstance $primary -AvailabilityGroup $agname -Replica $asyncsecondary -AvailabilityMode SynchronousCommit;
 
         <# Check the $syncstate variable until it flips to Synchronizing, indicating the failover can occur without data loss #>
+        #TODO Add timeout process - Error or flip back to async?
         while($syncstate -eq "Synchronizing")
         {
             $syncstate = Get-DbaAgReplica -SqlInstance $asyncsecondary -AvailabilityGroup $agname | Where-Object -Property Name -EQ $asyncsecondary | Select-Object -ExpandProperty RollupSynchronizationState;
+            #TODO Change to Write-Verbose or some other Write- command
             Write-Host $syncstate -ForegroundColor Yellow;
         }
 
@@ -81,16 +100,18 @@ Function Start-FailoverToAsyncReplica{
 
         <# Resume data movement for the new secondary replicas, in case it is suspended
            Skip this step by setting $resume = Y #>
-        if($resume -eq "Y")
+        if($resume -eq $true)
         {
             Get-DbaAgDatabase -SqlInstance $replicas | Resume-DbaAgDbDataMovement -Confirm:$false;        
         }
+
+        #TODO - Add warning/error if movement does not resume
         
     }
     
     Catch{
-      Write-Host "Something went wrong.: $($PSItem.ToString())" -ForegroundColor Red;
-      Break
+      Write-Warning "Something went wrong.: $PSItem";
+      $_;
     }
 
   }
