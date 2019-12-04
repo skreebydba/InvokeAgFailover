@@ -27,19 +27,16 @@
 
 .EXAMPLE
   Failover to async replica with no data loss.  Resume data movement to the new secondary replicas.
-  Start-FailoverToAsyncReplica -primary replica1 -secondary replica2 -agname yourag -resume:$true;
+  Start-FailoverToAsyncReplica -asyncsecondary replica2 -agname yourag -resume:$true;
 
   Failover to async replica with no data loss.  Do not resume data movement to the new secondary replicas.
-  Start-FailoverToAsyncReplica -primary replica1 -secondary replica2 -agname yourag -resume:$false;
+  Start-FailoverToAsyncReplica -asyncsecondary replica2 -agname yourag -resume:$false;
 
 #>
 Function Start-FailoverToAsyncReplica{
   [CmdletBinding()]
 
     PARAM ( 
-        [Parameter(Mandatory=$true)]
-        [string]
-        $primary,
         [Parameter(Mandatory=$true)]
         [string]
         $asyncsecondary,
@@ -59,9 +56,9 @@ Function Start-FailoverToAsyncReplica{
   Process{
     Try{
 
-        $starttime = Get-Date;
-
+        $asyncsecondary = $asyncsecondary.ToUpper();
         $ag = Get-DbaAvailabilityGroup -SqlInstance $primary -AvailabilityGroup $agname;
+        $primary = (Get-DbaAvailabilityGroup -SqlInstance $asyncsecondary -AvailabilityGroup $agname).PrimaryReplica;
 
         if(!$ag)
         {
@@ -97,10 +94,9 @@ Function Start-FailoverToAsyncReplica{
         #TODO Add timeout process - Error or flip back to async?
 
         $synccheck = Get-Date;
-        while(($syncstate -eq "Synchronizing") -and ($synccheck -lt $starttime.AddMinutes(5)))
+        while(($syncstate -eq "Synchronizing") -and ($synccheck.AddMinutes(5) -gt $(Get-Date)))
         {
             $syncstate = Get-DbaAgReplica -SqlInstance $asyncsecondary -AvailabilityGroup $agname | Where-Object -Property Name -EQ $asyncsecondary | Select-Object -ExpandProperty RollupSynchronizationState;
-            $synccheck = Get-Date;
             #TODO Change to Write-Verbose or some other Write- command
             Write-Host $syncstate -ForegroundColor Yellow;
             Start-Sleep -Seconds 10;
