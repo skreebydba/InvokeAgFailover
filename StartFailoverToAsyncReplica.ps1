@@ -103,6 +103,7 @@ Function Start-FailoverToAsyncReplica{
             $synccheck = Get-Date;
             #TODO Change to Write-Verbose or some other Write- command
             Write-Host $syncstate -ForegroundColor Yellow;
+            Start-Sleep -Seconds 10;
         }
 
         <# Fail the Availability Group over to the formerly asynchronous secondary #>
