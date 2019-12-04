@@ -96,8 +96,6 @@ Function Start-FailoverToAsyncReplica{
         #TODO Add timeout process - Error or flip back to async?
 
         $synccheck = Get-Date;
-        $synccheck
-        $starttime.AddMinutes(5)
         while(($syncstate -eq "Synchronizing") -and ($synccheck -lt $starttime.AddMinutes(5)))
         {
             $syncstate = Get-DbaAgReplica -SqlInstance $asyncsecondary -AvailabilityGroup $agname | Where-Object -Property Name -EQ $asyncsecondary | Select-Object -ExpandProperty RollupSynchronizationState;
@@ -120,6 +118,7 @@ Function Start-FailoverToAsyncReplica{
         [System.Collections.ArrayList]$secondaries = (Get-DbaAvailabilityGroup -SqlInstance $asyncsecondary -AvailabilityGroup $agname).AvailabilityReplicas.Name;
         $secondaries.Remove($asyncsecondary);
 
+        <# Check if data movement is resumed.  If not, output an error.  If so, flip the secondaries to async. #>
         $suspended = (Get-DbaAgDatabase -SqlInstance $secondaries -AvailabilityGroup $agname).IsSuspended;
         if($suspended.Contains("true"))
         {
@@ -128,6 +127,7 @@ Function Start-FailoverToAsyncReplica{
         else
         {
             Write-Host "Data movement is resumed for all databases."
+            Set-DbaAgReplica -SqlInstance $primary -AvailabilityGroup $agname -Replica $secondaries -AvailabilityMode AsynchronousCommit;
         }
         
     }
