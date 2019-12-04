@@ -50,6 +50,13 @@ Function Start-FailoverToAsyncReplica{
   
   Process{
     Try{
+
+        $ag = Get-DbaAvailabilityGroup -SqlInstance $primary -AvailabilityGroup $agname;
+
+        if(!$ag)
+        {
+            Throw "Availability group $agname does not exist.  Please check the name and run the function again.";
+        }
         
         <# Get a list of replicas for the Availability Group to use to resume movement after failover #>
         [System.Collections.ArrayList]$replicas = (Get-DbaAvailabilityGroup -SqlInstance $primary).AvailabilityReplicas.Name;
@@ -82,7 +89,7 @@ Function Start-FailoverToAsyncReplica{
     }
     
     Catch{
-      "Something went wrong.: $($PSItem.ToString())"
+      Write-Host "Something went wrong.: $($PSItem.ToString())" -ForegroundColor Red;
       Break
     }
 
