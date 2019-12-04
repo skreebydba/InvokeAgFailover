@@ -16,7 +16,7 @@
   The Availability Group being failed over.
 
 .PARAMETER resume
-    #TODO
+  Resume data movement to the new secondary replicas. Required because failover is being run with the -Force parameter.
 
 .NOTES
     Updated: 2019-12-03       Initial build.
@@ -25,8 +25,11 @@
   Author: Frank Gill, Concurrency, Inc.
 
 .EXAMPLE
-  Failover to async replica with no data loss.
-  Start-FailoverToAsyncReplica -primary replica1 -secondary replica2 -agname yourag
+  Failover to async replica with no data loss.  Resume data movement to the new secondary replicas.
+  Start-FailoverToAsyncReplica -primary replica1 -secondary replica2 -agname yourag -resume:$true;
+
+  Failover to async replica with no data loss.  Do not resume data movement to the new secondary replicas.
+  Start-FailoverToAsyncReplica -primary replica1 -secondary replica2 -agname yourag -resume:$false;
 
 #>
 Function Start-FailoverToAsyncReplica{
@@ -49,10 +52,13 @@ Function Start-FailoverToAsyncReplica{
   
   Begin{
     Write-Host "Start Start-FailoverToAsyncReplica function..."
+    Import-Module DBATools;
   }
   
   Process{
     Try{
+
+        $starttime = Get-Date;
 
         $ag = Get-DbaAvailabilityGroup -SqlInstance $primary -AvailabilityGroup $agname;
 
@@ -88,9 +94,14 @@ Function Start-FailoverToAsyncReplica{
 
         <# Check the $syncstate variable until it flips to Synchronizing, indicating the failover can occur without data loss #>
         #TODO Add timeout process - Error or flip back to async?
-        while($syncstate -eq "Synchronizing")
+
+        $synccheck = Get-Date;
+        $synccheck
+        $starttime.AddMinutes(5)
+        while(($syncstate -eq "Synchronizing") -and ($synccheck -lt $starttime.AddMinutes(5)))
         {
             $syncstate = Get-DbaAgReplica -SqlInstance $asyncsecondary -AvailabilityGroup $agname | Where-Object -Property Name -EQ $asyncsecondary | Select-Object -ExpandProperty RollupSynchronizationState;
+            $synccheck = Get-Date;
             #TODO Change to Write-Verbose or some other Write- command
             Write-Host $syncstate -ForegroundColor Yellow;
         }
@@ -106,6 +117,18 @@ Function Start-FailoverToAsyncReplica{
         }
 
         #TODO - Add warning/error if movement does not resume
+        [System.Collections.ArrayList]$secondaries = (Get-DbaAvailabilityGroup -SqlInstance $asyncsecondary -AvailabilityGroup $agname).AvailabilityReplicas.Name;
+        $secondaries.Remove($asyncsecondary);
+
+        $suspended = (Get-DbaAgDatabase -SqlInstance $secondaries -AvailabilityGroup $agname).IsSuspended;
+        if($suspended.Contains("true"))
+        {
+            Write-Warning "Data movement is suspended for one or more databases."
+        }
+        else
+        {
+            Write-Host "Data movement is resumed for all databases."
+        }
         
     }
     
