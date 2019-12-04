@@ -4,8 +4,9 @@
   The purpose of this script is to fail over to an asynchronous replica.
   
 .DESCRIPTION
-  The purpose of this script is to fail over to an asynchronous replica.  The script switches the async replica to sync.  Once the secondary is in a synchronized state,
-  the Availability Group is failed over.
+  The purpose of this script is to fail over to an asynchronous replica.  The script switches the async replica to sync.  Once the secondary is in a 
+  synchronized state, the Availability Group is failed over.
+
 .PARAMETER primary
   The current primary replica for the Availability Group.
 
@@ -111,7 +112,7 @@ Function Start-FailoverToAsyncReplica{
            Skip this step by setting $resume = Y #>
         if($resume -eq $true)
         {
-            Get-DbaAgDatabase -SqlInstance $replicas | Resume-DbaAgDbDataMovement -Confirm:$false;        
+            Get-DbaAgDatabase -SqlInstance $replicas -AvailabilityGroup $agname | Resume-DbaAgDbDataMovement -Confirm:$false;        
         }
 
         #TODO - Add warning/error if movement does not resume
