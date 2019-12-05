@@ -7,9 +7,6 @@
   The purpose of this script is to fail over to an asynchronous replica.  The script switches the async replica to sync.  Once the secondary is in a 
   synchronized state, the Availability Group is failed over.
 
-.PARAMETER primary
-  The current primary replica for the Availability Group.
-
 .PARAMETER asyncsecondary
   The async secondary replica you want to fail over to.
 
