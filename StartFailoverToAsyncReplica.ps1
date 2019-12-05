@@ -32,6 +32,9 @@
   Failover to async replica with no data loss.  Do not resume data movement to the new secondary replicas.
   Start-FailoverToAsyncReplica -asyncsecondary replica2 -agname yourag -resume:$false;
 
+  Failover to async replica with no data loss.  Resume data movement to the new secondary replicas and see all informational messages.
+  Start-FailoverToAsyncReplica -asyncsecondary replica2 -agname yourag -resume:$true -Verbose;
+
 #>
 Function Start-FailoverToAsyncReplica{
   [CmdletBinding()]
@@ -49,7 +52,7 @@ Function Start-FailoverToAsyncReplica{
     )
   
   Begin{
-    Write-Host "Start Start-FailoverToAsyncReplica function..."
+    Write-Verbose "Start Start-FailoverToAsyncReplica function..."
     Import-Module DBATools;
   }
   
@@ -124,7 +127,7 @@ Function Start-FailoverToAsyncReplica{
         }
         else
         {
-            Write-Host "Data movement is resumed for all databases."
+            Write-Verbose "Data movement is resumed for all databases."
             Set-DbaAgReplica -SqlInstance $primary -AvailabilityGroup $agname -Replica $secondaries -AvailabilityMode AsynchronousCommit;
         }
         
@@ -139,7 +142,7 @@ Function Start-FailoverToAsyncReplica{
   
   End{
     If($?){ # only execute if the function was successful.
-      Write-Host "Completed Start-FailoverToAsyncReplica function." -ForegroundColor Yellow;
+      Write-Verbose "Completed Start-FailoverToAsyncReplica function.";
     }
   }
 }
