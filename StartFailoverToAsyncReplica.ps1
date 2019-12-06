@@ -18,7 +18,10 @@
 
 .NOTES
     Updated: 2019-12-03       Initial build.
-    Release Date: TBD
+    Release Date: 2019-12-06
+
+    This script uses functions from the dbatools project.  More information and documentation can be found at https://dbatools.io/commands/#AGs.
+    Thanks to the DBATools team.
    
   Author: Frank Gill, Concurrency, Inc.
 
@@ -58,10 +61,7 @@ Function Start-FailoverToAsyncReplica{
         
         <# Uppercase to syncsecondary parm to match output of Get-DbaAvailabilityGroup#>
         $asyncsecondary = $asyncsecondary.ToUpper();
-
-        <# Get the primary replica name #>
-        $primary = (Get-DbaAvailabilityGroup -SqlInstance $asyncsecondary -AvailabilityGroup $agname).PrimaryReplica;
-
+                
         $ag = Get-DbaAvailabilityGroup -SqlInstance $primary -AvailabilityGroup $agname;
 
         if(!$ag)
@@ -69,6 +69,9 @@ Function Start-FailoverToAsyncReplica{
             Throw "Availability group $agname does not exist.  Please check the name and run the function again.";
         }
         
+        <# Get the primary replica name #>
+        $primary = (Get-DbaAvailabilityGroup -SqlInstance $asyncsecondary -AvailabilityGroup $agname).PrimaryReplica;
+
         <# Get a list of replicas for the Availability Group to use to resume movement after failover #>
         [System.Collections.ArrayList]$replicas = (Get-DbaAvailabilityGroup -SqlInstance $primary -AvailabilityGroup $agname).AvailabilityReplicas.Name;
 
