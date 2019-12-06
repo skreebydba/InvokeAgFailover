@@ -58,10 +58,11 @@ Function Start-FailoverToAsyncReplica{
         
         <# Uppercase to syncsecondary parm to match output of Get-DbaAvailabilityGroup#>
         $asyncsecondary = $asyncsecondary.ToUpper();
-        $ag = Get-DbaAvailabilityGroup -SqlInstance $primary -AvailabilityGroup $agname;
 
         <# Get the primary replica name #>
         $primary = (Get-DbaAvailabilityGroup -SqlInstance $asyncsecondary -AvailabilityGroup $agname).PrimaryReplica;
+
+        $ag = Get-DbaAvailabilityGroup -SqlInstance $primary -AvailabilityGroup $agname;
 
         if(!$ag)
         {
@@ -104,9 +105,9 @@ Function Start-FailoverToAsyncReplica{
             Write-Host $syncstate -ForegroundColor Yellow;
             Start-Sleep -Seconds 10;
 
-            if($synccheck.AddMinutes(5) -gt $(Get-Date))
+            if(($synccheck.AddMinutes(5) -lt $(Get-Date)))
             {
-                Set-DbaAgReplica -SqlInstance $primary -AvailabilityGroup $agname -Replica $asyncsecondary -AvailabilityMode SynchronousCommit;
+                Set-DbaAgReplica -SqlInstance $primary -AvailabilityGroup $agname -Replica $asyncsecondary -AvailabilityMode AsynchronousCommit;
                 Throw "The secondary replica has not synchronized within 5 minutes.  Switching $asyncsecondary to asynchronous mode and ending script.";  
             }
         }
@@ -124,7 +125,7 @@ Function Start-FailoverToAsyncReplica{
         [System.Collections.ArrayList]$secondaries = (Get-DbaAvailabilityGroup -SqlInstance $asyncsecondary -AvailabilityGroup $agname).AvailabilityReplicas.Name;
         $secondaries.Remove($asyncsecondary);
 
-        <# Check if data movement is resumed.  If not, output an error.  If so, flip the secondaries to async. #>
+        <# Check if data movement is resumed.  If not, output an warning.  If so, flip the secondaries to manual and async. #>
         $suspended = (Get-DbaAgDatabase -SqlInstance $secondaries -AvailabilityGroup $agname).IsSuspended;
         if($suspended.Contains("true"))
         {
@@ -133,7 +134,10 @@ Function Start-FailoverToAsyncReplica{
         else
         {
             Write-Verbose "Data movement is resumed for all databases."
-            Set-DbaAgReplica -SqlInstance $primary -AvailabilityGroup $agname -Replica $secondaries -AvailabilityMode AsynchronousCommit;
+            foreach($secondary in $secondaries)
+            {
+                Set-DbaAgReplica -SqlInstance $asyncsecondary -AvailabilityGroup $agname -Replica $secondary -FailoverMode Manual -AvailabilityMode AsynchronousCommit;
+            }
         }
         
     }
