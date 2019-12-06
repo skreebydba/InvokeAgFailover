@@ -55,9 +55,12 @@ Function Start-FailoverToAsyncReplica{
   
   Process{
     Try{
-
+        
+        <# Uppercase to syncsecondary parm to match output of Get-DbaAvailabilityGroup#>
         $asyncsecondary = $asyncsecondary.ToUpper();
         $ag = Get-DbaAvailabilityGroup -SqlInstance $primary -AvailabilityGroup $agname;
+
+        <# Get the primary replica name #>
         $primary = (Get-DbaAvailabilityGroup -SqlInstance $asyncsecondary -AvailabilityGroup $agname).PrimaryReplica;
 
         if(!$ag)
@@ -68,6 +71,7 @@ Function Start-FailoverToAsyncReplica{
         <# Get a list of replicas for the Availability Group to use to resume movement after failover #>
         [System.Collections.ArrayList]$replicas = (Get-DbaAvailabilityGroup -SqlInstance $primary -AvailabilityGroup $agname).AvailabilityReplicas.Name;
 
+        <# Check the existence of the primary and secondary replicas in the list of AG replicas #>
         $primaryexists = $replicas.Contains($primary);
         $secondaryexists = $replicas.Contains($asyncsecondary);
 
@@ -90,29 +94,33 @@ Function Start-FailoverToAsyncReplica{
         <# Set the synchronization state for the async secondary to Synchronous #>
         Set-DbaAgReplica -SqlInstance $primary -AvailabilityGroup $agname -Replica $asyncsecondary -AvailabilityMode SynchronousCommit;
 
-        <# Check the $syncstate variable until it flips to Synchronizing, indicating the failover can occur without data loss #>
-        #TODO Add timeout process - Error or flip back to async?
+        <# Check the $syncstate variable until it flips to Synchronizing, indicating the failover can occur without data loss.
+           If the secondary does not synchronize in 5 minutes, switch the asyncsecondary back to synchronous and end the script. #>
 
         $synccheck = Get-Date;
         while(($syncstate -eq "Synchronizing") -and ($synccheck.AddMinutes(5) -gt $(Get-Date)))
         {
             $syncstate = Get-DbaAgReplica -SqlInstance $asyncsecondary -AvailabilityGroup $agname | Where-Object -Property Name -EQ $asyncsecondary | Select-Object -ExpandProperty RollupSynchronizationState;
-            #TODO Change to Write-Verbose or some other Write- command
             Write-Host $syncstate -ForegroundColor Yellow;
             Start-Sleep -Seconds 10;
+
+            if($synccheck.AddMinutes(5) -gt $(Get-Date))
+            {
+                Set-DbaAgReplica -SqlInstance $primary -AvailabilityGroup $agname -Replica $asyncsecondary -AvailabilityMode SynchronousCommit;
+                Throw "The secondary replica has not synchronized within 5 minutes.  Switching $asyncsecondary to asynchronous mode and ending script.";  
+            }
         }
 
         <# Fail the Availability Group over to the formerly asynchronous secondary #>
         Invoke-DbaAgFailover -SqlInstance $asyncsecondary -AvailabilityGroup $agname -Force;
 
         <# Resume data movement for the new secondary replicas, in case it is suspended
-           Skip this step by setting $resume = Y #>
+           Skip this step by using parm -resume:$false #>
         if($resume -eq $true)
         {
             Get-DbaAgDatabase -SqlInstance $replicas -AvailabilityGroup $agname | Resume-DbaAgDbDataMovement -Confirm:$false;        
         }
 
-        #TODO - Add warning/error if movement does not resume
         [System.Collections.ArrayList]$secondaries = (Get-DbaAvailabilityGroup -SqlInstance $asyncsecondary -AvailabilityGroup $agname).AvailabilityReplicas.Name;
         $secondaries.Remove($asyncsecondary);
 
