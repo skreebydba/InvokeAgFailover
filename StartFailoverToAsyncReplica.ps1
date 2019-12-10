@@ -95,7 +95,7 @@ Function Start-FailoverToAsyncReplica{
         <# Get the synchronization state of the async secondary for use in the while loop below #>
         $syncstate = Get-DbaAgReplica -SqlInstance $asyncsecondary -AvailabilityGroup $agname | Where-Object -Property Name -EQ $asyncsecondary | Select-Object -ExpandProperty RollupSynchronizationState;
 
-        <# Set the synchronization state for the async secondary to Synchronous #>
+        <# Set the availability mode for the async secondary to Synchronous #>
         Set-DbaAgReplica -SqlInstance $primary -AvailabilityGroup $agname -Replica $asyncsecondary -AvailabilityMode SynchronousCommit;
 
         <# Check the $syncstate variable until it flips to Synchronizing, indicating the failover can occur without data loss.
