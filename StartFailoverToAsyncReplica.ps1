@@ -48,7 +48,7 @@ Function Start-FailoverToAsyncReplica{
         $agname,
         [Parameter(Mandatory=$false)]
         [switch]
-        $resume
+        $resume = $true
     )
   
   Begin{
@@ -62,7 +62,7 @@ Function Start-FailoverToAsyncReplica{
         <# Uppercase to syncsecondary parm to match output of Get-DbaAvailabilityGroup#>
         $asyncsecondary = $asyncsecondary.ToUpper();
                 
-        $ag = Get-DbaAvailabilityGroup -SqlInstance $primary -AvailabilityGroup $agname;
+        $ag = Get-DbaAvailabilityGroup -SqlInstance $asyncsecondary -AvailabilityGroup $agname;
 
         if(!$ag)
         {
